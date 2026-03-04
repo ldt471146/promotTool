@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>提示词优化器</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div id="app">加载中...</div>
+  <script type="module">
+    import { state, designStyles, templates } from './src/data.js';
+
+    console.log('State:', state);
+    console.log('Styles:', designStyles.length);
+    console.log('Templates:', templates.length);
+
+    document.getElementById('app').innerHTML = `
+      <div class="p-8">
+        <h1 class="text-2xl font-bold mb-4">数据加载成功！</h1>
+        <p>设计风格数量: ${designStyles.length}</p>
+        <p>模板数量: ${templates.length}</p>
+      </div>
+    `;
+  </script>
+</body>
+</html>

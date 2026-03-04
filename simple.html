@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>提示词优化器</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-white">
+  <div id="app"></div>
+  <script>
+    // 数据
+    const designStyles = [
+      { id: 'neo-brutalist', name: '新野兽派', nameEn: 'Neo-Brutalist', desc: '黑色粗边框、硬边缘阴影', colors: ['#000', '#fff', '#ff006e'], keywords: ['粗边框', '硬阴影'], prompt: 'STYLEKIT: 新野兽派\n\n核心规则：\n- 边框：border-2 border-black\n- 阴影：shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]\n- 圆角：rounded-none' },
+      { id: 'glassmorphism', name: '玻璃拟态', nameEn: 'Glassmorphism', desc: '半透明毛玻璃', colors: ['#fff', '#3b82f6'], keywords: ['毛玻璃', '半透明'], prompt: 'STYLEKIT: 玻璃拟态\n\n核心规则：\n- 背景：bg-white/10 backdrop-blur-xl\n- 边框：border border-white/20' },
+      { id: 'neumorphism', name: '新拟物派', nameEn: 'Neumorphism', desc: '柔和立体、双重阴影', colors: ['#e0e5ec', '#6d5dfc'], keywords: ['立体', '双重阴影'], prompt: 'STYLEKIT: 新拟物派\n\n核心规则：\n- 背景：bg-[#e0e5ec]\n- 阴影：双重（外凸/内凹）' },
+      { id: 'material-design', name: '材料设计', nameEn: 'Material Design', desc: 'Google 设计系统', colors: ['#6200ee', '#03dac6'], keywords: ['Material', '层次'], prompt: 'STYLEKIT: 材料设计\n\n核心规则：\n- 海拔阴影系统\n- 涟漪效果' },
+      { id: 'bauhaus', name: '包豪斯', nameEn: 'Bauhaus', desc: '功能主义、几何形式', colors: ['#000', '#fff', '#ff0000'], keywords: ['几何', '原色'], prompt: 'STYLEKIT: 包豪斯\n\n核心规则：\n- 仅用红黄蓝+黑白\n- 几何装饰' }
+    ];
+
+    const templates = [
+      { id: 1, name: '代码审查', category: '编程', icon: '💻', template: '请审查以下代码：\n{code}' },
+      { id: 2, name: '文章润色', category: '写作', icon: '✍️', template: '请润色以下文章：\n{content}' }
+    ];
+
+    const state = {
+      currentView: 'optimizer',
+      input: '',
+      result: '',
+      history: [],
+      isOptimizing: false
+    };
+
+    // 渲染
+    function render() {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="flex h-screen">
+          <!-- 左侧导航 -->
+          <aside class="w-64 bg-white border-r-2 border-black flex flex-col">
+            <div class="border-b-2 border-black px-4 py-4">
+              <h1 class="font-black text-xl">提示词优化器</h1>
+            </div>
+            <nav class="flex-1 py-4">
+              <button onclick="switchView('optimizer')" class="w-full px-4 py-3 text-left font-bold ${state.currentView === 'optimizer' ? 'bg-black text-white' : ''}">⚡ 提示词优化</button>
+              <button onclick="switchView('styles')" class="w-full px-4 py-3 text-left font-bold ${state.currentView === 'styles' ? 'bg-black text-white' : ''}">🎨 前端风格库</button>
+              <button onclick="switchView('templates')" class="w-full px-4 py-3 text-left font-bold ${state.currentView === 'templates' ? 'bg-black text-white' : ''}">📋 模板库</button>
+            </nav>
+          </aside>
+
+          <!-- 主内容 -->
+          <main class="flex-1 overflow-y-auto p-8">
+            ${renderContent()}
+          </main>
+        </div>
+      `;
+    }
+
+    function renderContent() {
+      if (state.currentView === 'optimizer') {
+        return `
+          <h2 class="text-3xl font-black mb-6">提示词优化</h2>
+          <textarea id="input" class="w-full h-48 border-2 border-black p-4 mb-4" placeholder="输入需求...">${state.input}</textarea>
+          <button onclick="optimize()" class="bg-black text-white px-6 py-3 font-bold">优化提示词</button>
+          ${state.result ? `<div class="mt-6 border-2 border-black p-6"><pre>${state.result}</pre></div>` : ''}
+        `;
+      } else if (state.currentView === 'styles') {
+        return `
+          <h2 class="text-3xl font-black mb-6">前端风格库</h2>
+          <div class="grid grid-cols-2 gap-4">
+            ${designStyles.map(s => `
+              <div class="border-2 border-black p-6 cursor-pointer hover:bg-gray-100" onclick="selectStyle('${s.id}')">
+                <h3 class="text-xl font-bold mb-2">${s.name} / ${s.nameEn}</h3>
+                <p class="text-sm text-gray-600 mb-3">${s.desc}</p>
+                <div class="flex gap-2">
+                  ${s.colors.map(c => `<div class="w-8 h-8 border border-black" style="background:${c}"></div>`).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        return `
+          <h2 class="text-3xl font-black mb-6">模板库</h2>
+          <div class="grid grid-cols-3 gap-4">
+            ${templates.map(t => `
+              <div class="border-2 border-black p-6 cursor-pointer hover:bg-gray-100" onclick="selectTemplate(${t.id})">
+                <div class="text-3xl mb-3">${t.icon}</div>
+                <h3 class="text-lg font-bold">${t.name}</h3>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+    }
+
+    window.switchView = (view) => {
+      state.currentView = view;
+      render();
+    };
+
+    window.optimize = () => {
+      const input = document.getElementById('input').value;
+      state.input = input;
+      state.result = '# 优化后的提示词\n\n' + input;
+      render();
+    };
+
+    window.selectStyle = (id) => {
+      const style = designStyles.find(s => s.id === id);
+      state.input = style.prompt;
+      state.currentView = 'optimizer';
+      render();
+    };
+
+    window.selectTemplate = (id) => {
+      const template = templates.find(t => t.id === id);
+      state.input = template.template;
+      state.currentView = 'optimizer';
+      render();
+    };
+
+    render();
+  </script>
+</body>
+</html>
