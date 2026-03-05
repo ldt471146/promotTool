@@ -1007,8 +1007,8 @@ window.optimize = async () => {
 - 预期提升：[准确性/完整性/可控性]`;
     }
 
-    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-    const endpoint = state.apiUrl.startsWith('http://') ? `${corsProxy}${state.apiUrl}/chat/completions` : `${state.apiUrl}/chat/completions`;
+    const corsProxy = 'https://api.allorigins.win/raw?url=';
+    const endpoint = state.apiUrl.startsWith('http://') ? `${corsProxy}${encodeURIComponent(state.apiUrl + '/chat/completions')}` : `${state.apiUrl}/chat/completions`;
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -1236,8 +1236,8 @@ window.testConnection = async () => {
 
   try {
     // 使用 CORS 代理解决混合内容问题
-    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-    const endpoint = apiUrl.startsWith('http://') ? `${corsProxy}${apiUrl}/models` : `${apiUrl}/models`;
+    const corsProxy = 'https://api.allorigins.win/raw?url=';
+    const endpoint = apiUrl.startsWith('http://') ? `${corsProxy}${encodeURIComponent(apiUrl + '/models')}` : `${apiUrl}/models`;
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
