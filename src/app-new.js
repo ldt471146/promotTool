@@ -670,6 +670,17 @@ function renderSettings() {
           <button onclick="closeApiModal()" class="text-white text-3xl hover:scale-110 smooth-transition">×</button>
         </div>
         <div class="p-6 space-y-6">
+          <!-- HTTP API 警告 -->
+          <div class="border-2 border-orange-500 bg-orange-50 p-4 rounded-sm">
+            <div class="flex items-start gap-3">
+              <span class="text-2xl">⚠️</span>
+              <div class="text-sm">
+                <p class="font-bold text-orange-700 mb-1">重要提示</p>
+                <p class="text-gray-700">GitHub Pages 不支持 HTTP API（仅支持 HTTPS）。如需使用 HTTP API，请在本地运行：</p>
+                <code class="block mt-2 bg-gray-800 text-green-400 p-2 rounded">npm run dev</code>
+              </div>
+            </div>
+          </div>
           <div>
             <label class="font-bold text-sm mb-2 block text-gray-700 flex items-center gap-2">
               <span>🤖</span>
@@ -1007,9 +1018,7 @@ window.optimize = async () => {
 - 预期提升：[准确性/完整性/可控性]`;
     }
 
-    const corsProxy = 'https://api.allorigins.win/raw?url=';
-    const endpoint = state.apiUrl.startsWith('http://') ? `${corsProxy}${encodeURIComponent(state.apiUrl + '/chat/completions')}` : `${state.apiUrl}/chat/completions`;
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${state.apiUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1235,9 +1244,7 @@ window.testConnection = async () => {
   resultDiv.innerHTML = '<div class="border-2 border-black bg-gray-100 p-4 text-sm">⏳ 测试连接中...</div>';
 
   try {
-    // 使用 CORS 代理解决混合内容问题
-    const corsProxy = 'https://api.allorigins.win/raw?url=';
-    const endpoint = apiUrl.startsWith('http://') ? `${corsProxy}${encodeURIComponent(apiUrl + '/models')}` : `${apiUrl}/models`;
+    const endpoint = `${apiUrl}/models`;
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
