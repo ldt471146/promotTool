@@ -1,9 +1,13 @@
+// 检测运行环境
+const isElectron = window.electronAPI !== undefined;
+
 // 应用状态
 export const state = {
   currentView: 'optimizer',
   input: '',
   result: '',
-  history: JSON.parse(localStorage.getItem('history') || '[]'),
+  history: [],
+  favorites: JSON.parse(localStorage.getItem('favorites') || '[]'), // 收藏夹
   apiKey: localStorage.getItem('apiKey') || '',
   apiUrl: localStorage.getItem('apiUrl') || '',
   modelType: localStorage.getItem('modelType') || 'openai',
@@ -11,8 +15,64 @@ export const state = {
   availableModels: [],
   isOptimizing: false,
   currentPage: 1,
-  pageSize: 12
+  pageSize: 12,
+  optimizeMode: 'fast',
+  selectedTemplate: null // 当前选中的模板
 };
+
+// 初始化加载历史
+if (isElectron) {
+  window.electronAPI.loadHistory().then(data => {
+    state.history = JSON.parse(data);
+  }).catch(() => {
+    state.history = [];
+  });
+} else {
+  state.history = JSON.parse(localStorage.getItem('history') || '[]');
+}
+
+// 保存历史到文件
+async function saveToFile() {
+  const content = JSON.stringify(state.history, null, 2);
+  if (isElectron) {
+    await window.electronAPI.saveHistory(content);
+  } else {
+    localStorage.setItem('history', content);
+  }
+}
+
+// 保存历史记录
+export async function saveHistory(input, output, mode, model) {
+  const historyItem = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    input,
+    output,
+    mode,
+    model
+  };
+
+  state.history.unshift(historyItem);
+
+  // 只保留最近 100 条
+  if (state.history.length > 100) {
+    state.history = state.history.slice(0, 100);
+  }
+
+  await saveToFile();
+}
+
+// 删除历史记录
+export async function deleteHistory(id) {
+  state.history = state.history.filter(item => item.id !== id);
+  await saveToFile();
+}
+
+// 清空所有历史
+export async function clearAllHistory() {
+  state.history = [];
+  await saveToFile();
+}
 
 // 前端设计风格数据（仅展示，点击跳转官网）
 export const designStyles = [
@@ -529,9 +589,463 @@ export const designStyles = [
 ];
 
 // 模板
+// 内置提示词模板（融合 IBM + 53AI + Giscafer 提示词工程最佳实践）
 export const templates = [
-  { id: 1, name: '代码审查', category: '编程', icon: '💻', template: '请审查以下代码：\n{code}\n\n关注：性能、安全、规范' },
-  { id: 2, name: '文章润色', category: '写作', icon: '✍️', template: '润色文章：\n{content}\n\n读者：{audience}\n风格：{style}' },
-  { id: 3, name: '专业翻译', category: '翻译', icon: '🌐', template: '翻译：{source_lang} → {target_lang}\n{content}' },
-  { id: 4, name: 'Bug 分析', category: '编程', icon: '🐛', template: '分析 Bug：\n错误：{error}\n代码：{code}' }
+  {
+    id: 1,
+    name: 'RTD 框架 (角色-任务-细节)',
+    category: '核心框架',
+    icon: '🎯',
+    description: '基础框架，通过角色、任务、细节三要素构建提示词，性能提升 10-20%',
+    systemPrompt: `【角色 Role】
+你是 [专业身份]，拥有 [背景经验]。
+
+【任务 Task】
+请 [具体动作] [目标对象]，实现 [预期结果]。
+
+【细节 Details】
+- 输出格式：[Markdown/JSON/代码]
+- 约束条件：[限制/要求]
+- 质量标准：[评判标准]
+- 特殊要求：[其他说明]
+
+请按照以上结构完成任务。`
+  },
+  {
+    id: 2,
+    name: 'APE 框架 (行动-目的-期望)',
+    category: '核心框架',
+    icon: '🚀',
+    description: '将请求分解为可执行步骤、底层目的和可衡量结果',
+    systemPrompt: `【行动 Action】
+具体要做什么：[明确的动作步骤]
+
+【目的 Purpose】
+为什么要做：[背后的动机和目标]
+
+【期望 Expectation】
+期望的结果：[可衡量的成功标准]
+
+请基于以上三要素完成任务。`
+  },
+  {
+    id: 3,
+    name: 'BROKE 框架 (背景-角色-目标-关键结果-演进)',
+    category: '核心框架',
+    icon: '📊',
+    description: '结合 OKR 方法论，适合复杂项目和长期目标',
+    systemPrompt: `【背景 Background】
+项目背景：[当前情况/问题/机会]
+
+【角色 Role】
+你是：[专业身份和职责]
+
+【目标 Objectives】
+核心目标：[想要达成什么]
+
+【关键结果 Key Results】
+成功指标：
+- KR1：[可衡量的结果1]
+- KR2：[可衡量的结果2]
+- KR3：[可衡量的结果3]
+
+【演进 Evolution】
+迭代策略：[如何持续优化]
+
+请按照 BROKE 框架完成任务。`
+  },
+  {
+    id: 4,
+    name: 'CO-STAR 框架',
+    category: '核心框架',
+    icon: '⭐',
+    description: '六要素完整框架：上下文-目标-风格-语气-受众-响应',
+    systemPrompt: `【上下文 Context】
+背景信息：[任务的背景和环境]
+
+【目标 Objective】
+明确目标：[想要实现什么]
+
+【风格 Style】
+输出风格：[正式/技术/通俗/创意]
+
+【语气 Tone】
+语言语气：[专业/友好/严肃/幽默]
+
+【受众 Audience】
+目标受众：[读者/用户画像]
+
+【响应 Response】
+响应格式：[具体的输出格式要求]
+
+请按照 CO-STAR 框架完成任务。`
+  },
+  {
+    id: 5,
+    name: 'Chain-of-Thought (思维链)',
+    category: '认知增强',
+    icon: '🧠',
+    description: '让模型展示推理步骤，数学推理准确率提升 50%+',
+    systemPrompt: `请使用思维链方法，展示完整的推理过程：
+
+<thinking>
+步骤 1：理解问题
+- 问题是什么？
+- 已知条件有哪些？
+- 需要求解什么？
+
+步骤 2：分析推理
+- 需要哪些中间步骤？
+- 每一步的逻辑是什么？
+- 有哪些关键假设？
+
+步骤 3：计算/推导
+- 具体的计算过程
+- 中间结果验证
+
+步骤 4：得出结论
+- 最终答案是什么？
+- 如何验证答案的正确性？
+</thinking>
+
+<answer>
+[最终答案]
+</answer>
+
+请展示完整的思考过程。`
+  },
+  {
+    id: 6,
+    name: 'Self-Consistency CoT',
+    category: '认知增强',
+    icon: '🔄',
+    description: '生成多条推理路径，选择最一致的答案，提高准确性',
+    systemPrompt: `请使用自洽性思维链方法：
+
+【路径 1】
+<thinking>
+[第一种推理方式]
+</thinking>
+<answer>[答案1]</answer>
+
+【路径 2】
+<thinking>
+[第二种推理方式]
+</thinking>
+<answer>[答案2]</answer>
+
+【路径 3】
+<thinking>
+[第三种推理方式]
+</thinking>
+<answer>[答案3]</answer>
+
+【最终答案】
+基于多条路径的一致性，最可靠的答案是：[综合答案]
+
+请生成多条推理路径并选择最一致的答案。`
+  },
+  {
+    id: 7,
+    name: 'Few-shot 示例引导',
+    category: '核心技术',
+    icon: '📚',
+    description: '通过 2-3 个示例展示期望的输出格式和风格',
+    systemPrompt: `请参考以下示例，理解期望的输出风格和格式：
+
+【示例 1】
+输入：[示例输入1]
+输出：[示例输出1]
+
+【示例 2】
+输入：[示例输入2]
+输出：[示例输出2]
+
+【示例 3】
+输入：[示例输入3]
+输出：[示例输出3]
+
+【要求】
+严格按照示例的风格、格式、深度处理用户的输入。
+
+现在请处理：[用户输入]`
+  },
+  {
+    id: 8,
+    name: '明确清晰型',
+    category: '核心技术',
+    icon: '✨',
+    description: '使用明确的动作动词，避免模糊表达',
+    systemPrompt: `请使用明确、清晰的方式完成任务：
+
+【明确要求】
+- 使用具体的动作动词（创建、分析、优化、生成、评估）
+- 避免模糊表达（"帮我看看"、"处理一下"、"弄一下"）
+- 明确指定期望的输出格式和深度
+
+【示例对比】
+❌ 模糊：帮我做个仪表板
+✅ 明确：创建一个销售数据仪表板，包含：月度趋势图、TOP10产品排名、地区分布饼图
+
+现在请处理用户的具体需求。`
+  },
+  {
+    id: 9,
+    name: '上下文动机型',
+    category: '核心技术',
+    icon: '💡',
+    description: '解释任务背后的"为什么"，让 AI 理解目标',
+    systemPrompt: `请理解任务背后的动机和目标：
+
+【上下文信息】
+- 任务背景：[为什么要做这个]
+- 最终目标：[想达到什么效果]
+- 使用场景：[在什么情况下使用]
+- 目标受众：[给谁看/谁使用]
+- 成功标准：[如何判断成功]
+
+【决策原则】
+基于上下文做出最符合目标的决策，而不是机械执行指令。
+
+现在请处理用户的需求。`
+  },
+  {
+    id: 10,
+    name: '允许不确定型',
+    category: '核心技术',
+    icon: '❓',
+    description: '明确允许 AI 说"不知道"，减少幻觉',
+    systemPrompt: `【重要原则】
+如果你不确定答案，请明确说"我不知道"或"我不确定"，不要猜测或编造信息。
+
+【回答要求】
+- 确定的信息：直接回答，并说明依据
+- 部分确定：说明确定的部分，标注不确定的部分
+- 完全不确定：诚实说"我不知道"，并建议查阅权威资料
+
+【禁止行为】
+- 编造数据或事实
+- 过度自信的错误回答
+- 模糊的"可能"、"也许"（除非明确标注）
+
+现在请处理用户的需求。`
+  },
+  {
+    id: 11,
+    name: 'Prompt Chaining (提示链)',
+    category: '高级技术',
+    icon: '⛓️',
+    description: '将复杂任务拆解为多个子任务，逐步执行',
+    systemPrompt: `请将复杂任务拆解为多个子任务，按顺序执行：
+
+【任务拆解】
+子任务 1：[任务名称]
+- 输入：[初始输入]
+- 处理：[具体操作]
+- 输出：[中间结果]
+- 验证：[质量检查]
+
+子任务 2：[任务名称]
+- 输入：[使用子任务1的输出]
+- 处理：[具体操作]
+- 输出：[中间结果]
+- 验证：[质量检查]
+
+子任务 3：[任务名称]
+- 输入：[使用子任务2的输出]
+- 处理：[具体操作]
+- 输出：[最终结果]
+- 验证：[质量检查]
+
+【执行原则】
+每个子任务独立完成，确保前一个任务的输出质量。`
+  },
+  {
+    id: 12,
+    name: '响应预填充 (JSON 格式)',
+    category: '高级技术',
+    icon: '📝',
+    description: '预填充响应开头，强制特定格式输出',
+    systemPrompt: `请以 JSON 格式输出结果。
+
+【输出格式】
+{
+  "status": "success",
+  "data": {
+    // 你的数据
+  },
+  "metadata": {
+    "timestamp": "ISO 8601 格式",
+    "version": "1.0",
+    "confidence": 0.95
+  }
+}
+
+【要求】
+- 严格遵循 JSON 格式
+- 所有字段必须有值
+- 确保 JSON 可解析
+- 不要添加额外的文本说明
+
+现在请处理用户的需求。`
+  },
+  {
+    id: 13,
+    name: '代码生成专用',
+    category: '应用场景',
+    icon: '💻',
+    description: '专门用于代码开发，包含完整的技术约束',
+    systemPrompt: `你是资深软件工程师。
+
+【技术栈】
+- 语言：[编程语言]
+- 框架：[框架名称]
+- 版本：[版本号]
+
+【开发要求】
+- 代码规范：遵循 [语言] 最佳实践
+- 性能要求：[具体指标，如响应时间、内存占用]
+- 安全要求：防止 SQL注入、XSS、CSRF 等漏洞
+- 可维护性：清晰的命名、适当的注释、模块化设计
+
+【输出格式】
+1. 完整可运行的代码
+2. 关键逻辑说明
+3. 使用示例
+4. 测试建议
+5. 潜在问题和优化方向
+
+如果不确定某个技术细节，请明确说明。`
+  },
+  {
+    id: 14,
+    name: '内容创作专用',
+    category: '应用场景',
+    icon: '✍️',
+    description: '专门用于内容创作，包含受众和风格约束',
+    systemPrompt: `你是专业内容创作者。
+
+【创作要求】
+- 内容类型：[文章/博客/文案/脚本/社交媒体]
+- 主题：[具体主题]
+- 目标受众：[年龄/职业/兴趣/痛点]
+- 字数要求：[字数范围]
+
+【风格要求】
+- 语气：[正式/轻松/专业/幽默/激励]
+- 结构：[总分总/递进式/对比式/故事化]
+- 特色：[数据驱动/案例丰富/实用性强]
+
+【内容要点】
+- 核心观点：[主要论点]
+- 支撑论据：[数据/案例/引用]
+- 行动号召：[希望读者做什么]
+
+【禁止】
+- 避免的内容：[敏感话题/过时信息]
+
+如果需要的数据或事实不确定，请明确标注。`
+  },
+  {
+    id: 15,
+    name: '数据分析专用',
+    category: '应用场景',
+    icon: '📊',
+    description: '专门用于数据分析，包含完整的分析框架',
+    systemPrompt: `你是数据分析专家。
+
+【分析任务】
+- 数据类型：[数值/文本/时间序列/分类]
+- 分析目标：[趋势/对比/预测/分类/异常检测]
+- 业务场景：[具体业务背景]
+
+【分析框架】
+1. 数据概览
+   - 数据量：[样本数/时间跨度]
+   - 数据质量：[完整性/准确性]
+   - 关键指标：[核心指标定义]
+
+2. 深度分析
+   - 趋势发现：[时间序列分析]
+   - 异常识别：[离群点/突变点]
+   - 相关性分析：[变量关系]
+   - 细分分析：[按维度拆解]
+
+3. 洞察与建议
+   - 核心发现：[3-5个关键洞察]
+   - 业务影响：[对业务的意义]
+   - 行动建议：[可执行的建议]
+   - 风险提示：[需要注意的问题]
+
+请提供专业的数据分析报告。`
+  }
 ];
+
+// 自定义模板（从 localStorage 加载）
+export const customTemplates = JSON.parse(localStorage.getItem('customTemplates') || '[]');
+
+// 保存自定义模板
+export function saveCustomTemplate(name, category, systemPrompt) {
+  const newTemplate = {
+    id: `custom-${Date.now()}`,
+    name,
+    category,
+    icon: '⭐',
+    systemPrompt,
+    isCustom: true
+  };
+  customTemplates.push(newTemplate);
+  localStorage.setItem('customTemplates', JSON.stringify(customTemplates));
+  return newTemplate;
+}
+
+// 删除自定义模板
+export function deleteCustomTemplate(id) {
+  const index = customTemplates.findIndex(t => t.id === id);
+  if (index > -1) {
+    customTemplates.splice(index, 1);
+    localStorage.setItem('customTemplates', JSON.stringify(customTemplates));
+  }
+}
+
+// 获取所有模板（内置 + 自定义）
+export function getAllTemplates() {
+  return [...templates, ...customTemplates];
+}
+
+// 收藏功能
+export function addToFavorites(input, output, mode, model, templateName) {
+  const favorite = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    input,
+    output,
+    mode,
+    model,
+    templateName: templateName || '无模板',
+    note: '' // 用户备注
+  };
+  state.favorites.unshift(favorite);
+  localStorage.setItem('favorites', JSON.stringify(state.favorites));
+}
+
+// 删除收藏
+export function deleteFavorite(id) {
+  state.favorites = state.favorites.filter(f => f.id !== id);
+  localStorage.setItem('favorites', JSON.stringify(state.favorites));
+}
+
+// 更新收藏备注
+export function updateFavoriteNote(id, note) {
+  const favorite = state.favorites.find(f => f.id === id);
+  if (favorite) {
+    favorite.note = note;
+    localStorage.setItem('favorites', JSON.stringify(state.favorites));
+  }
+}
+
+// 清空收藏
+export function clearAllFavorites() {
+  state.favorites = [];
+  localStorage.setItem('favorites', JSON.stringify([]));
+}
