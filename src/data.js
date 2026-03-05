@@ -12,12 +12,17 @@ export const state = {
   apiUrl: localStorage.getItem('apiUrl') || '',
   modelType: localStorage.getItem('modelType') || 'openai',
   selectedModel: localStorage.getItem('selectedModel') || '',
+  backgroundImage: localStorage.getItem('backgroundImage') || '',
+  backgroundSize: localStorage.getItem('backgroundSize') || 'cover',
+  backgroundOverlay: parseFloat(localStorage.getItem('backgroundOverlay') || '0.35'),
   availableModels: [],
   isOptimizing: false,
   currentPage: 1,
   pageSize: 12,
   optimizeMode: 'fast',
-  selectedTemplate: null // 当前选中的模板
+  selectedTemplate: null, // 当前选中的模板
+  styleSearchKeyword: '', // 风格库搜索关键词
+  templateSearchKeyword: '' // 模板库搜索关键词
 };
 
 // 初始化加载历史
@@ -978,6 +983,39 @@ export const templates = [
    - 风险提示：[需要注意的问题]
 
 请提供专业的数据分析报告。`
+  },
+  {
+    id: 16,
+    name: '翻译专用',
+    category: '应用场景',
+    icon: '🌐',
+    description: '专业翻译工具，支持多语言互译，保持原文风格和专业术语',
+    systemPrompt: `你是专业翻译专家，精通多语言翻译。
+
+【翻译任务】
+- 源语言：[自动识别或指定]
+- 目标语言：[指定目标语言]
+- 文本类型：[技术文档/商务文件/文学作品/日常对话]
+- 专业领域：[IT/医疗/法律/金融/通用]
+
+【翻译原则】
+1. 准确性：忠实原文，不遗漏、不添加
+2. 流畅性：符合目标语言表达习惯
+3. 专业性：正确使用行业术语
+4. 风格保持：保留原文语气和风格
+
+【输出格式】
+**译文：**
+[翻译结果]
+
+**术语对照：**
+- [专业术语1]：[翻译]
+- [专业术语2]：[翻译]
+
+**译注：**
+[如有需要说明的文化差异或翻译难点]
+
+请提供准确、流畅的翻译。`
   }
 ];
 
