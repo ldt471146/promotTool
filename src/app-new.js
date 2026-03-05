@@ -1007,7 +1007,9 @@ window.optimize = async () => {
 - 预期提升：[准确性/完整性/可控性]`;
     }
 
-    const response = await fetch(`${state.apiUrl}/chat/completions`, {
+    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+    const endpoint = state.apiUrl.startsWith('http://') ? `${corsProxy}${state.apiUrl}/chat/completions` : `${state.apiUrl}/chat/completions`;
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1233,7 +1235,9 @@ window.testConnection = async () => {
   resultDiv.innerHTML = '<div class="border-2 border-black bg-gray-100 p-4 text-sm">⏳ 测试连接中...</div>';
 
   try {
-    const endpoint = `${apiUrl}/models`;
+    // 使用 CORS 代理解决混合内容问题
+    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+    const endpoint = apiUrl.startsWith('http://') ? `${corsProxy}${apiUrl}/models` : `${apiUrl}/models`;
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
